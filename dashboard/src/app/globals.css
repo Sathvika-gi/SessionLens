@@ -1,0 +1,78 @@
+@import "tailwindcss";
+
+:root {
+  --background: #050609;
+  --foreground: #f4f4f7;
+}
+
+@theme {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  
+  /* Custom Semantic Colors for Dark Theme */
+  --color-zinc-850: #1b1c24;
+  --color-zinc-905: #0c0d13;
+  --color-zinc-450: #9393a2;
+  --color-zinc-550: #5c5d6e;
+  --color-indigo-650: #4338ca;
+  --color-indigo-450: #6366f1;
+  --color-emerald-450: #10b981;
+  --color-rose-450: #f43f5e;
+}
+
+/* Custom Scrollbar Styles for Digital Journal Stream */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(39, 39, 42, 0.4);
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(63, 63, 70, 0.6);
+}
+
+body {
+  background-color: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans);
+  overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Elegant radial gradients & glass indicators */
+.glass-panel {
+  background: rgba(12, 13, 20, 0.45);
+  backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.03);
+}
+
+.glass-pill {
+  background: rgba(255, 255, 255, 0.02);
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.04);
+}
+
+/* Subtle border animation helper */
+@keyframes border-pulse {
+  0%, 100% {
+    border-color: rgba(99, 102, 241, 0.15);
+  }
+  50% {
+    border-color: rgba(168, 85, 247, 0.3);
+  }
+}
+
+.glowing-border {
+  animation: border-pulse 6s infinite ease-in-out;
+}

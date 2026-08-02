@@ -1,0 +1,17 @@
+# Dependency folders
+node_modules/
+
+# Credentials and keys
+.env
+.env.local
+.env.*.local
+
+# Build outputs
+.next/
+out/
+dist/
+build/
+
+# Logs and system generation artifacts
+*.log
+.system_generated/

@@ -1,0 +1,229 @@
+"use client";
+
+import { useState } from "react";
+import { motion, AnimatePresence } from "framer-motion";
+import { Session, getDomain } from "../utils/sessionizer";
+import { ChevronDown, Globe, Clock, Tag, ExternalLink, RefreshCw, Layers, Plus } from "lucide-react";
+
+interface SessionCardProps {
+  session: Session;
+}
+
+export default function SessionCard({ session }: SessionCardProps) {
+  const [isExpanded, setIsExpanded] = useState(false);
+
+  // Format timestamp to hours:minutes AM/PM
+  const formatTime = (dateObj: Date) => {
+    try {
+      const date = new Date(dateObj);
+      return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+    } catch (e) {
+      return "";
+    }
+  };
+
+  // Map category to styles
+  const getCategoryStyles = (category: string) => {
+    switch (category) {
+      case "Software Engineering":
+        return "bg-indigo-500/10 text-indigo-400 border-indigo-500/20";
+      case "Artificial Intelligence":
+        return "bg-purple-500/10 text-purple-400 border-purple-500/20";
+      case "Product Design":
+        return "bg-pink-500/10 text-pink-400 border-pink-500/20";
+      case "Productivity & Docs":
+        return "bg-amber-500/10 text-amber-400 border-amber-500/20";
+      case "Learning & Research":
+        return "bg-teal-500/10 text-teal-400 border-teal-500/20";
+      case "Leisure & Entertainment":
+        return "bg-sky-500/10 text-sky-400 border-sky-500/20";
+      default:
+        return "bg-slate-500/10 text-slate-400 border-slate-500/20";
+    }
+  };
+
+  // Icon mapping for action events
+  const renderEventIcon = (eventType: string) => {
+    const cls = "w-3 h-3";
+    switch (eventType) {
+      case "tab_activated":
+        return (
+          <span title="Tab Activated">
+            <Layers className={`${cls} text-blue-400`} />
+          </span>
+        );
+      case "url_updated":
+        return (
+          <span title="URL Updated">
+            <RefreshCw className={`${cls} text-emerald-400`} />
+          </span>
+        );
+      default:
+        return (
+          <span title="Tab Action">
+            <Plus className={`${cls} text-zinc-400`} />
+          </span>
+        );
+    }
+  };
+
+  return (
+    <motion.div
+      layout="position"
+      className={`w-full bg-[#0a0b10]/40 border rounded-[22px] overflow-hidden transition-all duration-300 ${
+        isExpanded
+          ? "border-zinc-800/80 bg-[#0d0e15]/60 shadow-xl shadow-black/30"
+          : "border-zinc-900/60 hover:border-zinc-800/70 hover:bg-[#0c0d12]/50 hover:shadow-lg hover:shadow-indigo-950/5"
+      }`}
+    >
+      {/* Top Main Clickable Section */}
+      <div
+        onClick={() => setIsExpanded(!isExpanded)}
+        className="p-6 cursor-pointer select-none flex flex-col gap-4"
+      >
+        {/* Top line: Time range & Category tag */}
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-3 text-xs text-zinc-550 font-mono font-medium">
+            <span className="flex items-center gap-1">
+              <Clock className="w-3.5 h-3.5" />
+              {formatTime(session.startTime)} – {formatTime(session.endTime)}
+            </span>
+            <span className="text-zinc-700">•</span>
+            <span className="text-zinc-450 font-semibold px-2 py-0.5 rounded bg-zinc-900/50 border border-zinc-850">
+              {session.durationString}
+            </span>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <span
+              className={`text-[10px] font-bold uppercase tracking-wider px-3 py-1 rounded-full border ${getCategoryStyles(
+                session.category
+              )}`}
+            >
+              {session.category}
+            </span>
+            <motion.div
+              animate={{ rotate: isExpanded ? 180 : 0 }}
+              transition={{ duration: 0.2 }}
+              className="p-1 rounded-lg bg-zinc-900/40 border border-zinc-850/80 text-zinc-400"
+            >
+              <ChevronDown className="w-4 h-4" />
+            </motion.div>
+          </div>
+        </div>
+
+        {/* Middle Line: AI Session Title */}
+        <div>
+          <h2 className="text-base sm:text-lg font-bold text-zinc-150 tracking-tight leading-tight group-hover:text-zinc-100 transition-colors">
+            {session.title}
+          </h2>
+        </div>
+
+        {/* Summary (Brief Description) */}
+        {session.summary && (
+          <p className="text-sm text-zinc-400 font-medium leading-relaxed max-w-4xl">
+            {session.summary}
+          </p>
+        )}
+
+        {/* Footer info: Domain pills list */}
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5 mt-1">
+          {session.websites.slice(0, 5).map((domain, index) => (
+            <span
+              key={`${domain}_${index}`}
+              className="text-[11px] font-mono text-indigo-400/90 font-medium bg-indigo-950/5 border border-indigo-900/20 px-2 py-0.5 rounded-lg flex items-center gap-1.5"
+            >
+              <Globe className="w-3 h-3 text-indigo-500/80" />
+              {domain}
+            </span>
+          ))}
+          {session.websites.length > 5 && (
+            <span className="text-[10px] text-zinc-500 font-medium pl-1">
+              +{session.websites.length - 5} more
+            </span>
+          )}
+        </div>
+      </div>
+
+      {/* Expanded digital journal section */}
+      <AnimatePresence initial={false}>
+        {isExpanded && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: "auto", opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.25, ease: "easeInOut" }}
+            className="overflow-hidden border-t border-zinc-850/40 bg-[#07080c]/50"
+          >
+            <div className="p-6 sm:p-8 flex flex-col gap-6">
+              
+              {/* Detailed section title */}
+              <div>
+                <h4 className="text-xs font-semibold text-indigo-300 uppercase tracking-wider font-mono mb-4">
+                  Digital Journal Timeline
+                </h4>
+                
+                {/* Timeline flow */}
+                <div className="relative pl-6 space-y-6 before:absolute before:left-[11px] before:top-2 before:bottom-2 before:w-[2px] before:bg-zinc-850/60">
+                  {session.events.map((evt, idx) => {
+                    const domain = getDomain(evt.url);
+                    return (
+                      <div key={evt._id || idx} className="relative flex flex-col sm:flex-row sm:items-start gap-2 group/event">
+                        
+                        {/* Event timeline dot badge */}
+                        <div className="absolute -left-[20px] top-1 w-[12px] h-[12px] rounded-full bg-zinc-950 border-2 border-zinc-800 flex items-center justify-center group-hover/event:border-indigo-500 group-hover/event:bg-indigo-950 transition-colors z-10" />
+
+                        {/* Event Time */}
+                        <div className="text-[10px] text-zinc-500 font-mono whitespace-nowrap min-w-[65px] pt-0.5">
+                          {formatTime(evt.timestamp)}
+                        </div>
+
+                        {/* Event Details */}
+                        <div className="flex-1 min-w-0">
+                          <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                            <span className="text-sm font-semibold text-zinc-200 group-hover/event:text-white transition-colors truncate max-w-2xl" title={evt.title}>
+                              {evt.title || "Untitled Webpage"}
+                            </span>
+                            
+                            {/* Tiny event badge */}
+                            <span className="px-1.5 py-0.5 rounded bg-zinc-900/80 border border-zinc-850 flex items-center gap-1">
+                              {renderEventIcon(evt.eventType)}
+                            </span>
+                          </div>
+
+                          {/* Domain redirection url */}
+                          {evt.url && evt.url !== "unknown" && (
+                            <a
+                              href={evt.url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center gap-1 text-xs text-indigo-400 hover:text-indigo-300 font-medium font-mono mt-1 hover:underline transition-colors"
+                            >
+                              {domain}
+                              <ExternalLink className="w-3 h-3 opacity-60 group-hover/event:opacity-100 transition-opacity" />
+                            </a>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Unique websites visited in this session summary */}
+              <div className="flex flex-wrap items-center justify-between gap-4 border-t border-zinc-850/30 pt-5 mt-2">
+                <div className="text-xs text-zinc-500 font-mono">
+                  Session ID: <span className="text-zinc-400 font-medium">{session.id}</span>
+                </div>
+                <div className="text-xs text-zinc-500 font-mono">
+                  Recorded Activity Points: <span className="text-zinc-400 font-medium">{session.events.length}</span>
+                </div>
+              </div>
+
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </motion.div>
+  );
+}
