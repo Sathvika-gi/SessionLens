@@ -1,4 +1,5 @@
 const express = require('express');
+// Forced nodemon restart after env prefix update
 const cors = require('cors');
 const dotenv = require('dotenv');
 const connectDB = require('./config/db');

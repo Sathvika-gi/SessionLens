@@ -47,8 +47,24 @@ async function analyzeSession(events) {
 
     const prompt = getBrowserAnalysisPrompt(events);
     
-    console.log(`[Gemini Service] Requesting analysis for ${events.length} browser events...`);
-    const result = await model.generateContent(prompt);
+    // Extract multimodal visual context from the events
+    const mediaParts = [];
+    events.forEach(evt => {
+      if (evt.screenshot) {
+        const part = parseMediaPart(evt.screenshot);
+        if (part) mediaParts.push(part);
+      }
+      if (evt.video) {
+        const part = parseMediaPart(evt.video);
+        if (part) mediaParts.push(part);
+      }
+    });
+    
+    console.log(`[Gemini Service] Requesting analysis for ${events.length} browser events and ${mediaParts.length} visual media files...`);
+    
+    // Pass prompt and mediaParts together to model.generateContent()
+    const contentPayload = mediaParts.length > 0 ? [prompt, ...mediaParts] : prompt;
+    const result = await model.generateContent(contentPayload);
     const responseText = result.response.text();
     
     console.log(`[Gemini Service] Received response: ${responseText}`);
@@ -96,6 +112,26 @@ async function analyzeSession(events) {
   } catch (error) {
     console.error('[Gemini Service] Error during session analysis:', error);
     throw error;
+  }
+}
+
+/**
+ * Helper to parse a data URL (e.g. data:image/jpeg;base64,...) into a generative part for Gemini.
+ */
+function parseMediaPart(dataUrl) {
+  try {
+    if (!dataUrl || typeof dataUrl !== 'string' || !dataUrl.startsWith('data:')) return null;
+    const matches = dataUrl.match(/^data:([a-zA-Z0-9\-]+\/[a-zA-Z0-9\-\.\+]+);base64,(.+)$/);
+    if (!matches) return null;
+    return {
+      inlineData: {
+        data: matches[2],
+        mimeType: matches[1]
+      }
+    };
+  } catch (e) {
+    console.warn('[Gemini Service] Failed to parse media part data URL:', e.message);
+    return null;
   }
 }
 

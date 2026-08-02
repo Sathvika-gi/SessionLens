@@ -54,7 +54,9 @@ export default function SessionCard({ session }: SessionCardProps) {
             url: evt.url,
             title: evt.title,
             timestamp: evt.timestamp,
-            eventType: evt.eventType
+            eventType: evt.eventType,
+            screenshot: evt.screenshot,
+            video: evt.video
           }))
         })
       });

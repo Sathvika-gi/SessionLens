@@ -16,6 +16,14 @@ const activitySchema = new mongoose.Schema({
   eventType: {
     type: String,
     required: true
+  },
+  screenshot: {
+    type: String,
+    required: false
+  },
+  video: {
+    type: String,
+    required: false
   }
 }, {
   timestamps: true

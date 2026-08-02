@@ -4,6 +4,8 @@ export interface Activity {
   title: string;
   timestamp: string;
   eventType: string;
+  screenshot?: string;
+  video?: string;
 }
 
 export interface SessionEvent {
@@ -12,6 +14,8 @@ export interface SessionEvent {
   url: string;
   timestamp: Date;
   eventType: string;
+  screenshot?: string;
+  video?: string;
 }
 
 export interface Session {
@@ -205,7 +209,9 @@ export const groupActivitiesIntoSessions = (activities: Activity[]): Session[] =
       title: act.title || "Untitled",
       url: act.url || "unknown",
       timestamp: actTime,
-      eventType: act.eventType
+      eventType: act.eventType,
+      screenshot: act.screenshot,
+      video: act.video
     };
 
     if (currentEvents.length === 0) {

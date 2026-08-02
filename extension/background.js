@@ -2,7 +2,7 @@
 const tabCache = new Map();
 
 // Helper to log activity to the background service worker console and backend server
-const logActivity = (eventType, url, title) => {
+const logActivity = (eventType, url, title, tabId = null) => {
   // Check if tracking is enabled before performing any log operations
   chrome.storage.local.get(['trackingEnabled'], (data) => {
     const isEnabled = data.trackingEnabled !== false;
@@ -18,28 +18,56 @@ const logActivity = (eventType, url, title) => {
       eventType: eventType
     };
 
-    console.log('[SessionLens Activity]', activity);
-
-    // Send activity to Express backend
-    fetch('http://localhost:5000/activity', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify(activity)
-    })
-    .then(response => {
-      if (!response.ok) {
-        console.error('Failed to send activity to server:', response.statusText);
-      } else {
-        console.log('Activity sent to backend successfully');
+    const sendPayload = (screenshotDataUrl = null) => {
+      const payload = { ...activity };
+      if (screenshotDataUrl) {
+        payload.screenshot = screenshotDataUrl;
       }
-    })
-    .catch(err => {
-      console.warn('Error sending activity to backend (backend might be offline):', err.message);
-    });
+
+      console.log('[SessionLens Activity]', activity, screenshotDataUrl ? '(with screenshot)' : '');
+
+      // Send activity to Express backend
+      fetch('http://localhost:5000/activity', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(payload)
+      })
+      .then(response => {
+        if (!response.ok) {
+          console.error('Failed to send activity to server:', response.statusText);
+        } else {
+          console.log('Activity sent to backend successfully');
+        }
+      })
+      .catch(err => {
+        console.warn('Error sending activity to backend (backend might be offline):', err.message);
+      });
+    };
+
+    // Capture tab screenshot if tabId is provided
+    if (tabId && eventType !== 'tab_closed') {
+      chrome.tabs.get(tabId, (tab) => {
+        if (chrome.runtime.lastError || !tab || !tab.active) {
+          sendPayload(null);
+          return;
+        }
+        
+        chrome.tabs.captureVisibleTab(tab.windowId, { format: 'jpeg', quality: 30 }, (dataUrl) => {
+          if (chrome.runtime.lastError) {
+            console.log('[Screenshot] Capture error:', chrome.runtime.lastError.message);
+            sendPayload(null);
+          } else {
+            sendPayload(dataUrl);
+          }
+        });
+      });
+    } else {
+      sendPayload(null);
+    }
     
-    // Also store in local storage to keep history available for popup or debug
+    // Also store in local storage to keep history available for popup or debug (lightweight, no screenshot)
     chrome.storage.local.get(['activitiesLog'], (dataLog) => {
       const log = dataLog.activitiesLog || [];
       log.push(activity);
@@ -72,7 +100,7 @@ chrome.tabs.onActivated.addListener((activeInfo) => {
     cacheTabDetails(tab.id, tab.url, tab.title);
     
     // Log active event
-    logActivity('tab_activated', tab.url, tab.title);
+    logActivity('tab_activated', tab.url, tab.title, tab.id);
   });
 });
 
@@ -83,7 +111,7 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
     // Update cache with the new URL
     cacheTabDetails(tabId, changeInfo.url, tab.title);
     
-    logActivity('url_updated', changeInfo.url, tab.title);
+    logActivity('url_updated', changeInfo.url, tab.title, tabId);
   } else if (changeInfo.title) {
     // Just update title cache if only title changed
     const cached = tabCache.get(tabId);

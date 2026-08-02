@@ -3,7 +3,7 @@ const Activity = require('../models/Activity');
 // Create a new activity log
 exports.createActivity = async (req, res) => {
   try {
-    const { url, title, timestamp, eventType } = req.body;
+    const { url, title, timestamp, eventType, screenshot, video } = req.body;
     
     if (!url || !timestamp || !eventType) {
       return res.status(400).json({ success: false, message: 'Missing required fields: url, timestamp, eventType' });
@@ -13,7 +13,9 @@ exports.createActivity = async (req, res) => {
       url,
       title: title || 'Untitled',
       timestamp: new Date(timestamp),
-      eventType
+      eventType,
+      screenshot,
+      video
     });
 
     res.status(201).json({ success: true, data: activity });

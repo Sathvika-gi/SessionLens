@@ -285,7 +285,9 @@ export default function Home() {
                       url: e.url,
                       title: e.title,
                       timestamp: e.timestamp,
-                      eventType: e.eventType
+                      eventType: e.eventType,
+                      screenshot: e.screenshot,
+                      video: e.video
                     }))
                   })
                 });
