@@ -74,14 +74,57 @@ document.getElementById('clear-logs-btn').addEventListener('click', () => {
   });
 });
 
+// Toggle Tracking Status UI
+const updateTrackingUI = (isEnabled) => {
+  const toggle = document.getElementById('tracking-toggle');
+  const dot = document.getElementById('status-dot');
+  const statusText = document.getElementById('status-text');
+  
+  if (toggle) toggle.checked = isEnabled;
+  if (dot) {
+    if (isEnabled) {
+      dot.style.backgroundColor = 'var(--success)';
+      dot.style.boxShadow = '0 0 8px var(--success)';
+      dot.classList.add('pulse');
+    } else {
+      dot.style.backgroundColor = 'var(--text-muted)';
+      dot.style.boxShadow = 'none';
+      dot.classList.remove('pulse');
+    }
+  }
+  if (statusText) {
+    statusText.textContent = isEnabled ? 'Tracking Active' : 'Tracking Paused';
+  }
+};
+
 // Initial UI load and subscription to changes
 document.addEventListener('DOMContentLoaded', () => {
   updateUI();
+  
+  // Load and apply tracking state
+  chrome.storage.local.get(['trackingEnabled'], (data) => {
+    const isEnabled = data.trackingEnabled !== false;
+    updateTrackingUI(isEnabled);
+  });
+
+  // Tracking toggle event listener
+  const toggleBtn = document.getElementById('tracking-toggle');
+  if (toggleBtn) {
+    toggleBtn.addEventListener('change', (e) => {
+      const isEnabled = e.target.checked;
+      chrome.storage.local.set({ trackingEnabled: isEnabled }, () => {
+        updateTrackingUI(isEnabled);
+      });
+    });
+  }
   
   // Listen for storage changes to update UI in real-time if popup is open
   chrome.storage.onChanged.addListener((changes, namespace) => {
     if (namespace === 'local' && changes.activitiesLog) {
       updateUI();
+    }
+    if (namespace === 'local' && changes.trackingEnabled) {
+      updateTrackingUI(changes.trackingEnabled.newValue !== false);
     }
   });
 });

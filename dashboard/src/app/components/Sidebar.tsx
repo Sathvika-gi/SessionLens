@@ -8,9 +8,41 @@ export type TabType = "dashboard" | "sessions" | "search" | "settings";
 interface SidebarProps {
   activeTab: TabType;
   setActiveTab: (tab: TabType) => void;
+  theme?: "carbon" | "cobalt" | "cyberpunk";
 }
 
-export default function Sidebar({ activeTab, setActiveTab }: SidebarProps) {
+export default function Sidebar({ activeTab, setActiveTab, theme = "carbon" }: SidebarProps) {
+  const getSidebarAccents = () => {
+    switch (theme) {
+      case "cobalt":
+        return {
+          activeBg: "from-cyan-950/15 to-blue-950/10 border-cyan-500/20",
+          activeBorder: "from-cyan-400 to-blue-500",
+          activeIcon: "text-cyan-450 filter drop-shadow-[0_0_8px_rgba(34,211,238,0.5)]",
+          glowBg: "bg-cyan-500/5 group-hover:bg-cyan-500/10",
+          statusText: "text-cyan-400/90"
+        };
+      case "cyberpunk":
+        return {
+          activeBg: "from-pink-950/15 to-fuchsia-950/10 border-pink-500/20",
+          activeBorder: "from-pink-400 to-fuchsia-500",
+          activeIcon: "text-pink-450 filter drop-shadow-[0_0_8px_rgba(244,63,94,0.5)]",
+          glowBg: "bg-pink-500/5 group-hover:bg-pink-500/10",
+          statusText: "text-pink-400/90"
+        };
+      case "carbon":
+      default:
+        return {
+          activeBg: "from-indigo-650/15 to-purple-650/10 border-indigo-500/20",
+          activeBorder: "from-indigo-400 to-purple-500",
+          activeIcon: "text-indigo-450 filter drop-shadow-[0_0_8px_rgba(129,140,248,0.5)]",
+          glowBg: "bg-indigo-500/5 group-hover:bg-indigo-500/10",
+          statusText: "text-indigo-400/90"
+        };
+    }
+  };
+
+  const accents = getSidebarAccents();
   const menuItems = [
     { id: "dashboard" as TabType, label: "Dashboard", icon: LayoutDashboard },
     { id: "sessions" as TabType, label: "Sessions", icon: BookOpen },
@@ -51,7 +83,7 @@ export default function Sidebar({ activeTab, setActiveTab }: SidebarProps) {
                 {isActive && (
                   <motion.div
                     layoutId="activeTabSlider"
-                    className="absolute inset-0 bg-gradient-to-r from-indigo-650/15 to-purple-650/10 border border-indigo-500/20 rounded-xl"
+                    className={`absolute inset-0 bg-gradient-to-r ${accents.activeBg} rounded-xl`}
                     transition={{ type: "spring", stiffness: 380, damping: 30 }}
                   />
                 )}
@@ -60,7 +92,7 @@ export default function Sidebar({ activeTab, setActiveTab }: SidebarProps) {
                 {isActive && (
                   <motion.div
                     layoutId="activeTabIndicator"
-                    className="absolute left-0 top-3 bottom-3 w-1 bg-gradient-to-b from-indigo-400 to-purple-500 rounded-r-full"
+                    className={`absolute left-0 top-3 bottom-3 w-1 bg-gradient-to-b ${accents.activeBorder} rounded-r-full`}
                     transition={{ type: "spring", stiffness: 380, damping: 30 }}
                   />
                 )}
@@ -69,7 +101,7 @@ export default function Sidebar({ activeTab, setActiveTab }: SidebarProps) {
                 <Icon
                   className={`w-5 h-5 relative z-10 transition-colors duration-200 ${
                     isActive
-                      ? "text-indigo-450 filter drop-shadow-[0_0_8px_rgba(129,140,248,0.5)]"
+                      ? accents.activeIcon
                       : "text-zinc-500 group-hover:text-zinc-300"
                   }`}
                 />
@@ -87,10 +119,9 @@ export default function Sidebar({ activeTab, setActiveTab }: SidebarProps) {
           })}
         </nav>
 
-        {/* Footer Vision Badge */}
         <div className="mt-auto p-4 rounded-2xl bg-zinc-900/35 border border-zinc-800/40 relative overflow-hidden group">
-          <div className="absolute top-0 right-0 w-24 h-24 bg-indigo-500/5 rounded-full blur-xl pointer-events-none group-hover:bg-indigo-500/10 transition-all duration-300" />
-          <p className="text-[11px] text-indigo-400/90 font-medium mb-1 tracking-wider uppercase font-mono">Status</p>
+          <div className={`absolute top-0 right-0 w-24 h-24 ${accents.glowBg} rounded-full blur-xl pointer-events-none transition-all duration-300`} />
+          <p className={`text-[11px] ${accents.statusText} font-medium mb-1 tracking-wider uppercase font-mono`}>Status</p>
           <div className="flex items-center gap-2">
             <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
             <span className="text-xs text-zinc-350 font-medium">Memory Engine Active</span>
@@ -119,7 +150,7 @@ export default function Sidebar({ activeTab, setActiveTab }: SidebarProps) {
               )}
               <Icon
                 className={`w-5 h-5 relative z-10 transition-all duration-200 ${
-                  isActive ? "text-indigo-400 scale-110" : "text-zinc-500"
+                  isActive ? `${accents.statusText} scale-110` : "text-zinc-500"
                 }`}
               />
               <span

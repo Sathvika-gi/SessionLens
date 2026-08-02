@@ -25,9 +25,12 @@ import {
   FileJson
 } from "lucide-react";
 
+// Fixed start time evaluated once on page load to prevent React key changes and card collapses during polling
+const DEMO_START_TIME = Date.now();
+
 // Pre-seeded high-fidelity demonstration activities
 const DEMO_ACTIVITIES = (): Activity[] => {
-  const now = Date.now();
+  const now = DEMO_START_TIME;
   return [
     // Session 1: Software Engineering (React Lifecycle)
     {
@@ -125,6 +128,7 @@ export default function Home() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isDemoMode, setIsDemoMode] = useState(false);
+  const [exporting, setExporting] = useState(false);
 
   // Search Filter State
   const [searchQuery, setSearchQuery] = useState("");
@@ -224,14 +228,144 @@ export default function Home() {
   }, [sessions, searchQuery, searchCategory, searchDate]);
 
   // Export current browsing memory logs
-  const handleExportData = () => {
-    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(sessions, null, 2));
-    const downloadAnchor = document.createElement("a");
-    downloadAnchor.setAttribute("href", dataStr);
-    downloadAnchor.setAttribute("download", `sessionlens_memory_export_${new Date().toISOString().split("T")[0]}.json`);
-    document.body.appendChild(downloadAnchor);
-    downloadAnchor.click();
-    downloadAnchor.remove();
+  const handleExportData = async () => {
+    setExporting(true);
+    try {
+      // Helper to format timestamps
+      const formatDateTime = (dateObj: Date | string | number) => {
+        try {
+          const date = new Date(dateObj);
+          return date.toLocaleString();
+        } catch (e) {
+          return String(dateObj);
+        }
+      };
+
+      const formatTimeOnly = (dateObj: Date | string | number) => {
+        try {
+          const date = new Date(dateObj);
+          return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+        } catch (e) {
+          return "";
+        }
+      };
+
+      let report = `# SessionLens Consolidated Workspace Activity Report\n\n`;
+      report += `Generated on: ${new Date().toLocaleString()}\n`;
+      report += `Total Sessions Captured: ${sessions.length}\n\n`;
+      
+      report += `## 📋 Table of Contents\n`;
+      const sortedSessions = [...sessions].sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
+      
+      sortedSessions.forEach((session, index) => {
+        report += `${index + 1}. [Session: ${session.title} (#session-${session.id})]\n`;
+      });
+      report += `\n---\n\n`;
+
+      if (sortedSessions.length === 0) {
+        report += `*No active sessions found in the database.*`;
+      } else {
+        // Run all session analyses in parallel from backend storage!
+        const analyzedSessions = await Promise.all(
+          sortedSessions.map(async (session, index) => {
+            let aiTitle = session.title;
+            let aiCategory = session.category;
+            let aiSummary = session.summary;
+            let aiTags = [session.category, ...session.websites.slice(0, 2)];
+            
+            if (!error && isDemoMode === false) {
+              try {
+                const aiResponse = await fetch("http://localhost:5000/api/ai/analyze-session", {
+                  method: "POST",
+                  headers: {
+                    "Content-Type": "application/json"
+                  },
+                  body: JSON.stringify({
+                    events: session.events.map(e => ({
+                      url: e.url,
+                      title: e.title,
+                      timestamp: e.timestamp,
+                      eventType: e.eventType
+                    }))
+                  })
+                });
+                
+                if (aiResponse.ok) {
+                  const aiJson = await aiResponse.json();
+                  if (aiJson.success && aiJson.data) {
+                    aiTitle = aiJson.data.sessionTitle || aiJson.data.title;
+                    aiCategory = aiJson.data.category;
+                    aiSummary = aiJson.data.summary;
+                    aiTags = aiJson.data.tags || aiTags;
+                  }
+                }
+              } catch (err) {
+                console.warn("Gemini AI API call failed during export, falling back to rule-based sessionizer metadata:", err);
+              }
+            }
+            
+            return {
+              ...session,
+              aiTitle,
+              aiCategory,
+              aiSummary,
+              aiTags,
+              index
+            };
+          })
+        );
+
+        // Compile report sequentially from resolved results
+        analyzedSessions.forEach((session) => {
+          report += `<a name="session-${session.id}"></a>\n`;
+          report += `### 📂 Session ${session.index + 1}: ${session.aiTitle}\n\n`;
+          report += `* **Category**: ${session.aiCategory}\n`;
+          report += `* **Time Frame**: ${formatDateTime(session.startTime)} - ${formatDateTime(session.endTime)}\n`;
+          report += `* **Duration**: ${session.durationString} (${session.durationMs}ms)\n`;
+          report += `* **Recorded Events**: ${session.events.length} actions\n\n`;
+          
+          report += `#### 💡 Focus Summary & Analysis\n`;
+          report += `> ${session.aiSummary}\n\n`;
+          
+          report += `#### 🌐 Websites Visited\n`;
+          session.websites.forEach(site => {
+            report += `* \`${site}\`\n`;
+          });
+          report += `\n`;
+
+          report += `#### 🏷️ Semantic Tags\n`;
+          session.aiTags.forEach(t => {
+            report += `* \`${t}\`\n`;
+          });
+          report += `\n`;
+
+          report += `#### ⏳ Captured Event Timeline\n`;
+          if (session.events && session.events.length > 0) {
+            const sortedEvents = [...session.events].sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+            sortedEvents.forEach(evt => {
+              report += `* **${formatTimeOnly(evt.timestamp)}** - *${evt.title}* | [${evt.eventType}] (${evt.url})\n`;
+            });
+          }
+          report += `\n---\n\n`;
+        });
+      }
+
+      report += `*Report generated by SessionLens AI. All rights reserved. Database records persisted in MongoDB.*`;
+
+      // Trigger Blob-based markdown download
+      const blob = new Blob([report], { type: "text/markdown;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const downloadAnchor = document.createElement("a");
+      downloadAnchor.href = url;
+      downloadAnchor.download = `sessionlens_consolidated_report_${new Date().toISOString().split("T")[0]}.md`;
+      document.body.appendChild(downloadAnchor);
+      downloadAnchor.click();
+      document.body.removeChild(downloadAnchor);
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error("Export failed:", err);
+    }
+    setExporting(false);
   };
 
   // Get Page Header Titles
@@ -258,16 +392,28 @@ export default function Home() {
       case "cobalt":
         return {
           bgGrad: "from-cyan-950/15 via-blue-950/5",
-          accentColor: "indigo",
+          accentColor: "cyan",
           flare: "bg-cyan-500/5",
-          accentText: "text-cyan-400"
+          accentText: "text-cyan-400",
+          accentHoverText: "hover:text-cyan-300",
+          accentBg: "bg-cyan-500/10",
+          accentBorder: "border-cyan-500/20",
+          accentSolid: "bg-cyan-500",
+          pulseBorder: "border-cyan-900/30",
+          focusBorder: "focus:border-cyan-500"
         };
       case "cyberpunk":
         return {
           bgGrad: "from-pink-950/15 via-purple-950/5",
           accentColor: "pink",
           flare: "bg-pink-500/5",
-          accentText: "text-pink-400"
+          accentText: "text-pink-400",
+          accentHoverText: "hover:text-pink-300",
+          accentBg: "bg-pink-500/10",
+          accentBorder: "border-pink-500/20",
+          accentSolid: "bg-pink-500",
+          pulseBorder: "border-pink-900/30",
+          focusBorder: "focus:border-pink-500"
         };
       case "carbon":
       default:
@@ -275,7 +421,13 @@ export default function Home() {
           bgGrad: "from-indigo-950/15 via-purple-950/5",
           accentColor: "indigo",
           flare: "bg-indigo-500/5",
-          accentText: "text-indigo-400"
+          accentText: "text-indigo-400",
+          accentHoverText: "hover:text-indigo-300",
+          accentBg: "bg-indigo-500/10",
+          accentBorder: "border-indigo-500/20",
+          accentSolid: "bg-indigo-500",
+          pulseBorder: "border-indigo-900/30",
+          focusBorder: "focus:border-indigo-500"
         };
     }
   };
@@ -289,7 +441,7 @@ export default function Home() {
       <div className={`absolute top-0 left-0 right-0 h-[380px] bg-gradient-to-b ${themeAccents.bgGrad} to-transparent pointer-events-none z-0`} />
 
       {/* Sidebar Navigation */}
-      <Sidebar activeTab={activeTab} setActiveTab={setActiveTab} />
+      <Sidebar activeTab={activeTab} setActiveTab={setActiveTab} theme={theme} />
 
       {/* Main Page Layout */}
       <div className="relative z-10 flex flex-col min-h-screen">
@@ -303,16 +455,16 @@ export default function Home() {
 
         {/* Demo Mode Notice Banner */}
         {isDemoMode && (
-          <div className="mx-6 mt-4 p-3 bg-indigo-950/10 border border-indigo-900/30 rounded-2xl flex items-center justify-between text-xs text-indigo-300">
+          <div className={`mx-6 mt-4 p-3 ${themeAccents.accentBg} border ${themeAccents.pulseBorder} rounded-2xl flex items-center justify-between text-xs ${themeAccents.accentText}`}>
             <span className="flex items-center gap-2">
-              <Sparkles className="w-4 h-4 text-indigo-400 animate-pulse" />
+              <Sparkles className={`w-4.5 h-4.5 ${themeAccents.accentText} animate-pulse`} />
               <span>
                 {error 
                   ? "Demonstration Mode Active: Connected to simulated visual storage feed." 
                   : "Welcome to SessionLens. Explore your simulated browser memory sessions below!"}
               </span>
             </span>
-            <span className="text-[10px] uppercase font-mono font-bold tracking-wider px-2 py-0.5 rounded bg-indigo-500/10 border border-indigo-500/20">
+            <span className={`text-[10px] uppercase font-mono font-bold tracking-wider px-2 py-0.5 rounded ${themeAccents.accentBg} border ${themeAccents.accentBorder}`}>
               Demo Active
             </span>
           </div>
@@ -352,7 +504,7 @@ export default function Home() {
                         
                         <div>
                           <h2 className="text-lg font-bold text-zinc-100 mb-2 flex items-center gap-2">
-                            <Sparkles className="w-4.5 h-4.5 text-indigo-400" />
+                            <Sparkles className={`w-4.5 h-4.5 ${themeAccents.accentText}`} />
                             AI Memory Assistant
                           </h2>
                           <p className="text-sm text-zinc-400 leading-relaxed mb-6">
@@ -387,7 +539,7 @@ export default function Home() {
                           </span>
                           <button
                             onClick={() => setActiveTab("sessions")}
-                            className="text-xs font-semibold text-indigo-400 hover:text-indigo-300 transition-colors flex items-center gap-1"
+                            className={`text-xs font-semibold ${themeAccents.accentText} ${themeAccents.accentHoverText} transition-colors flex items-center gap-1`}
                           >
                             Explore full journal →
                           </button>
@@ -465,7 +617,7 @@ export default function Home() {
                           value={searchQuery}
                           onChange={(e) => setSearchQuery(e.target.value)}
                           placeholder="Search memory (website, title, category, summary keyword)..."
-                          className="w-full bg-[#06070a]/90 border border-zinc-850 hover:border-zinc-750 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/30 rounded-2xl pl-11 pr-4 py-3.5 text-sm text-zinc-200 placeholder-zinc-550 outline-none transition-all"
+                          className={`w-full bg-[#06070a]/90 border border-zinc-850 hover:border-zinc-750 ${themeAccents.focusBorder} focus:ring-1 focus:ring-${themeAccents.accentColor}-500/30 rounded-2xl pl-11 pr-4 py-3.5 text-sm text-zinc-200 placeholder-zinc-550 outline-none transition-all`}
                         />
                       </div>
 
@@ -483,7 +635,7 @@ export default function Home() {
                               onClick={() => setSearchCategory(cat)}
                               className={`px-3 py-1.5 rounded-xl text-xs font-semibold border transition-all ${
                                 searchCategory === cat
-                                  ? "bg-indigo-650/15 border-indigo-500/30 text-indigo-400"
+                                  ? `${themeAccents.accentBg} ${themeAccents.accentBorder} ${themeAccents.accentText}`
                                   : "bg-zinc-950/20 border-zinc-850 hover:border-zinc-800 text-zinc-450 hover:text-zinc-300"
                               }`}
                             >
@@ -501,7 +653,7 @@ export default function Home() {
                             type="date"
                             value={searchDate}
                             onChange={(e) => setSearchDate(e.target.value)}
-                            className="bg-[#06070a]/60 border border-zinc-850 rounded-xl px-3 py-1.5 text-xs text-zinc-300 outline-none hover:border-zinc-800 focus:border-indigo-500 transition-all font-mono"
+                            className={`bg-[#06070a]/60 border border-zinc-850 rounded-xl px-3 py-1.5 text-xs text-zinc-300 outline-none hover:border-zinc-800 ${themeAccents.focusBorder} transition-all font-mono`}
                           />
                         </div>
 
@@ -522,7 +674,7 @@ export default function Home() {
                               setSearchCategory("All");
                               setSearchDate("");
                             }}
-                            className="text-xs text-indigo-400 hover:text-indigo-300 underline font-medium"
+                            className={`text-xs ${themeAccents.accentText} ${themeAccents.accentHoverText} underline font-medium`}
                           >
                             Reset filters
                           </button>
@@ -553,7 +705,7 @@ export default function Home() {
                       {/* Extension Status Card */}
                       <div className="p-6 rounded-3xl bg-[#090b10]/40 border border-zinc-850/60 backdrop-blur-md">
                         <h3 className="text-base font-bold text-zinc-150 mb-1 flex items-center gap-2">
-                          <Layers className="w-4.5 h-4.5 text-indigo-400" />
+                          <Layers className={`w-4.5 h-4.5 ${themeAccents.accentText}`} />
                           Chrome Extension Status
                         </h3>
                         <p className="text-xs text-zinc-500 mb-6">
@@ -584,7 +736,7 @@ export default function Home() {
                                   type="checkbox"
                                   checked={permissions.history}
                                   onChange={() => setPermissions(p => ({ ...p, history: !p.history }))}
-                                  className="w-4 h-4 rounded accent-indigo-500 bg-zinc-900 border-zinc-800"
+                                  className={`w-4 h-4 rounded ${themeAccents.accentSolid} bg-zinc-900 border-zinc-800`}
                                 />
                               </label>
                               
@@ -594,7 +746,7 @@ export default function Home() {
                                   type="checkbox"
                                   checked={permissions.tabs}
                                   onChange={() => setPermissions(p => ({ ...p, tabs: !p.tabs }))}
-                                  className="w-4 h-4 rounded accent-indigo-500 bg-zinc-900 border-zinc-800"
+                                  className={`w-4 h-4 rounded ${themeAccents.accentSolid} bg-zinc-900 border-zinc-800`}
                                 />
                               </label>
 
@@ -604,7 +756,7 @@ export default function Home() {
                                   type="checkbox"
                                   checked={permissions.scripting}
                                   onChange={() => setPermissions(p => ({ ...p, scripting: !p.scripting }))}
-                                  className="w-4 h-4 rounded accent-indigo-500 bg-zinc-900 border-zinc-800"
+                                  className={`w-4 h-4 rounded ${themeAccents.accentSolid} bg-zinc-900 border-zinc-800`}
                                 />
                               </label>
                             </div>
@@ -616,7 +768,7 @@ export default function Home() {
                       {/* AI Preference Configuration */}
                       <div className="p-6 rounded-3xl bg-[#090b10]/40 border border-zinc-850/60 backdrop-blur-md">
                         <h3 className="text-base font-bold text-zinc-150 mb-1 flex items-center gap-2">
-                          <Cpu className="w-4.5 h-4.5 text-indigo-400" />
+                          <Cpu className={`w-4.5 h-4.5 ${themeAccents.accentText}`} />
                           AI Processing Preference
                         </h3>
                         <p className="text-xs text-zinc-500 mb-6">
@@ -630,13 +782,13 @@ export default function Home() {
                             onClick={() => setAiModel("local-matcher")}
                             className={`p-4 rounded-2xl border cursor-pointer transition-all flex flex-col justify-between min-h-[110px] ${
                               aiModel === "local-matcher"
-                                ? "bg-indigo-650/10 border-indigo-500/40 text-indigo-400 shadow-md"
+                                ? `${themeAccents.accentBg} ${themeAccents.accentBorder} ${themeAccents.accentText} shadow-md`
                                 : "bg-zinc-950/20 border-zinc-850 text-zinc-400 hover:border-zinc-800"
                             }`}
                           >
                             <div className="flex justify-between items-start">
                               <span className="text-xs font-bold text-zinc-200">Local Rules Engine</span>
-                              {aiModel === "local-matcher" && <ShieldCheck className="w-4 h-4 text-indigo-400" />}
+                              {aiModel === "local-matcher" && <ShieldCheck className={`w-4 h-4 ${themeAccents.accentText}`} />}
                             </div>
                             <span className="text-[10px] text-zinc-500 leading-snug mt-2">
                               Pattern-matching text analyzer. Instant offline categorization. (Default)
@@ -648,13 +800,13 @@ export default function Home() {
                             onClick={() => setAiModel("gemini-flash")}
                             className={`p-4 rounded-2xl border cursor-pointer transition-all flex flex-col justify-between min-h-[110px] ${
                               aiModel === "gemini-flash"
-                                ? "bg-indigo-650/10 border-indigo-500/40 text-indigo-400 shadow-md"
+                                ? `${themeAccents.accentBg} ${themeAccents.accentBorder} ${themeAccents.accentText} shadow-md`
                                 : "bg-zinc-950/20 border-zinc-850 text-zinc-400 hover:border-zinc-800"
                             }`}
                           >
                             <div className="flex justify-between items-start">
                               <span className="text-xs font-bold text-zinc-200">Gemini 2.0 Flash</span>
-                              {aiModel === "gemini-flash" && <ShieldCheck className="w-4 h-4 text-indigo-400" />}
+                              {aiModel === "gemini-flash" && <ShieldCheck className={`w-4 h-4 ${themeAccents.accentText}`} />}
                             </div>
                             <span className="text-[10px] text-zinc-500 leading-snug mt-2">
                               Fast LLM classification. Requires backend API key mapping.
@@ -666,13 +818,13 @@ export default function Home() {
                             onClick={() => setAiModel("gpt-mini")}
                             className={`p-4 rounded-2xl border cursor-pointer transition-all flex flex-col justify-between min-h-[110px] ${
                               aiModel === "gpt-mini"
-                                ? "bg-indigo-650/10 border-indigo-500/40 text-indigo-400 shadow-md"
+                                ? `${themeAccents.accentBg} ${themeAccents.accentBorder} ${themeAccents.accentText} shadow-md`
                                 : "bg-zinc-950/20 border-zinc-850 text-zinc-400 hover:border-zinc-800"
                             }`}
                           >
                             <div className="flex justify-between items-start">
                               <span className="text-xs font-bold text-zinc-200">GPT-4o Mini</span>
-                              {aiModel === "gpt-mini" && <ShieldCheck className="w-4 h-4 text-indigo-400" />}
+                              {aiModel === "gpt-mini" && <ShieldCheck className={`w-4 h-4 ${themeAccents.accentText}`} />}
                             </div>
                             <span className="text-[10px] text-zinc-500 leading-snug mt-2">
                               Excellent summaries. High accuracy, slow inference speed.
@@ -715,7 +867,7 @@ export default function Home() {
                               <div className="flex items-center gap-2">
                                 <div className={`w-3.5 h-3.5 rounded-full ${t.preview}`} />
                                 {theme === t.id && (
-                                  <span className="text-[10px] text-indigo-400 font-bold uppercase tracking-wider font-mono">
+                                  <span className={`text-[10px] ${themeAccents.accentText} font-bold uppercase tracking-wider font-mono`}>
                                     ON
                                   </span>
                                 )}
@@ -735,10 +887,11 @@ export default function Home() {
                           {/* Export data */}
                           <button
                             onClick={handleExportData}
-                            className="w-full py-3 px-4 rounded-2xl bg-zinc-950/20 hover:bg-zinc-900 border border-zinc-850 hover:border-zinc-800 flex items-center justify-center gap-2.5 text-xs text-zinc-300 font-semibold transition-all hover:text-white"
+                            disabled={exporting}
+                            className={`w-full py-3 px-4 rounded-2xl bg-zinc-950/20 hover:bg-zinc-900 border border-zinc-850 hover:border-zinc-800 flex items-center justify-center gap-2.5 text-xs text-zinc-300 font-semibold transition-all hover:text-white ${exporting ? 'opacity-70 cursor-not-allowed' : ''}`}
                           >
-                            <Download className="w-4 h-4 text-indigo-400" />
-                            Export Browsing History
+                            <Download className={`w-4 h-4 ${themeAccents.accentText} ${exporting ? 'animate-bounce' : ''}`} />
+                            {exporting ? "Analyzing with Gemini..." : "Export Browsing History"}
                           </button>
 
                           {/* Clear memory trigger */}

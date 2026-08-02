@@ -30,6 +30,10 @@ Analyze the sequence, page titles, and URLs to determine:
 3. summary: A short, 1-2 sentence description explaining what the user did during this session (e.g., "Worked on understanding React Hooks while referring to official documentation and testing examples.").
 4. tags: A list of 2-5 relevant keyword tags associated with this session (e.g., ["React", "Hooks", "JavaScript"]).
 
+Writing Guidelines:
+- You MUST generate all text (sessionTitle, summary, and tags) in proper, grammatically correct, and professional English.
+- Avoid generic summaries or vague boilerplates. Write details specific to the actual pages visited.
+
 You MUST return ONLY a valid JSON object matching the following structure exactly. Do not wrap the JSON in markdown formatting blocks, do not include any backticks (e.g., do NOT start with \`\`\`json), and do not include any explanatory text before or after the JSON.
 
 JSON Structure:
