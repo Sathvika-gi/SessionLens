@@ -46,6 +46,43 @@ export const getDomain = (urlStr: string): string => {
   }
 };
 
+// Helper to format and clean raw page titles and search query strings
+const cleanSessionTitle = (title: string, url: string): string => {
+  if (!title || title === "Untitled" || title === "New Tab") {
+    return "Browsing Session";
+  }
+
+  let clean = title.trim();
+
+  // If the title starts with http, looks like a URL, or contains a search query string
+  if (clean.startsWith("http://") || clean.startsWith("https://") || clean.includes("google.com/search") || clean.includes("?") || clean.includes(".com")) {
+    try {
+      const targetUrl = url && url !== "unknown" ? url : (clean.startsWith("http") ? clean : `https://${clean}`);
+      const urlObj = new URL(targetUrl);
+      if (urlObj.hostname.includes("google.com") && urlObj.pathname.includes("search")) {
+        const query = urlObj.searchParams.get("q");
+        if (query) {
+          const cleanQuery = decodeURIComponent(query.replace(/\+/g, " "));
+          return cleanQuery.split(" ").map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(" ");
+        }
+      }
+      const domain = urlObj.hostname.replace("www.", "");
+      return domain.charAt(0).toUpperCase() + domain.slice(1);
+    } catch (e) {
+      // Fallback
+    }
+  }
+
+  // Handle Google Search title suffix
+  if (clean.toLowerCase().endsWith(" - google search")) {
+    const query = clean.substring(0, clean.length - " - google search".length).trim();
+    return query.split(" ").map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(" ");
+  }
+
+  // Remove common suffixes
+  return clean.replace(/ - [^-]+$/, "").replace(/ \| [^|]+$/, "").trim();
+};
+
 // Generate high-fidelity session title, category, and summary based on activity content
 const generateSessionMetadata = (events: SessionEvent[], domains: string[]): { title: string; category: string; summary: string } => {
   if (events.length === 0) {
@@ -76,12 +113,12 @@ const generateSessionMetadata = (events: SessionEvent[], domains: string[]): { t
     if (url.includes("chatgpt.com") || url.includes("openai.com") || url.includes("claude.ai") || url.includes("anthropic.com") || url.includes("gemini.google") || url.includes("v0.dev")) {
       scores.ai += 4;
     }
-    // Software Engineering
-    else if (url.includes("github.com") || url.includes("gitlab.com") || url.includes("localhost") || url.includes("vercel") || url.includes("stackoverflow.com") || url.includes("npmjs.com") || url.includes("react") || url.includes("nextjs") || url.includes("tailwind") || url.includes("typescript") || url.includes("developer.chrome") || url.includes("w3schools") || url.includes("mdn")) {
+    // Software Engineering / Programming
+    else if (url.includes("github.com") || url.includes("gitlab.com") || url.includes("localhost") || url.includes("vercel") || url.includes("stackoverflow.com") || url.includes("npmjs.com") || url.includes("react") || url.includes("nextjs") || url.includes("tailwind") || url.includes("typescript") || url.includes("developer.chrome") || url.includes("w3schools") || url.includes("mdn") || url.includes("leetcode.com") || url.includes("geeksforgeeks.org") || url.includes("hackerrank") || url.includes("codepen")) {
       scores.engineering += 4;
     }
     // Design
-    else if (url.includes("figma.com") || url.includes("dribbble") || url.includes("behance") || url.includes("canva")) {
+    else if (url.includes("figma.com") || url.includes("dribbble.com") || url.includes("dribbble") || url.includes("behance") || url.includes("canva")) {
       scores.design += 4;
     }
     // Productivity
@@ -92,9 +129,9 @@ const generateSessionMetadata = (events: SessionEvent[], domains: string[]): { t
     else if (url.includes("wikipedia.org") || url.includes("arxiv.org") || url.includes("scholar.google") || url.includes("medium.com") || url.includes("dev.to") || url.includes("quora.com")) {
       scores.research += 3;
     }
-    // Entertainment
-    else if (url.includes("youtube.com") || url.includes("netflix.com") || url.includes("reddit.com") || url.includes("spotify.com") || url.includes("twitter.com") || url.includes("x.com") || url.includes("instagram")) {
-      scores.entertainment += 3;
+    // Entertainment / Music
+    else if (url.includes("youtube.com") || url.includes("netflix.com") || url.includes("reddit.com") || url.includes("spotify.com") || url.includes("twitter.com") || url.includes("x.com") || url.includes("instagram") || url.includes("jiosaavn.com") || url.includes("smule.com") || url.includes("lyrics") || url.includes("saavn") || url.includes("music") || url.includes("wynk") || url.includes("gaana")) {
+      scores.entertainment += 5; // Music/entertainment gets a slightly higher weight to avoid false engineering ties
     }
     // Search
     else if (url.includes("google.com") || url.includes("bing.com") || url.includes("duckduckgo.com")) {
@@ -119,62 +156,76 @@ const generateSessionMetadata = (events: SessionEvent[], domains: string[]): { t
   }
 
   // Primary page title to extract keywords from
-  const primaryEvent = events.find(e => e.title && e.title !== "Untitled" && e.title !== "New Tab") || events[0];
-  const pageTitleClean = primaryEvent ? primaryEvent.title.replace(/ - [^-]+$/, "").trim() : "Browsing Session";
+  const primaryEvent = events.find(e => e.title && e.title !== "Untitled" && e.title !== "New Tab" && !e.title.startsWith("http") && !e.title.includes("google.com/search")) || events.find(e => e.title && e.title !== "Untitled" && e.title !== "New Tab") || events[0];
+  const pageTitleClean = primaryEvent ? cleanSessionTitle(primaryEvent.title, primaryEvent.url) : "Browsing Session";
+
+  const list = domains.slice(0, 4).join(", ");
 
   switch (winner) {
     case "ai":
       return {
         category: "Artificial Intelligence",
-        title: pageTitleClean.includes("ChatGPT") || pageTitleClean.includes("Claude") 
-          ? `Co-authoring & Prompting: ${pageTitleClean}`
-          : `AI Assisted Brainstorming: ${pageTitleClean}`,
-        summary: `Leveraged generative AI tools for programming guidance, creative ideation, or conceptual prototyping. Focused heavily on ${domains.slice(0, 3).join(", ")}.`
+        title: pageTitleClean,
+        summary: `Used generative AI tools to prompt and co-author content. Visited: ${list}.`
       };
     case "engineering": {
-      let topic = "Technical Solutions";
-      if (domains.some(d => d.includes("github"))) topic = "GitHub Repository Code Review";
-      else if (domains.some(d => d.includes("localhost"))) topic = "Debugging Local Web Server";
-      else if (domains.some(d => d.includes("react") || d.includes("nextjs"))) topic = "React App Architecture";
-      else if (domains.some(d => d.includes("stackoverflow"))) topic = "Resolving Dev Errors on StackOverflow";
-      else topic = pageTitleClean;
-
       return {
         category: "Software Engineering",
-        title: topic.length > 50 ? topic.substring(0, 47) + "..." : topic,
-        summary: `Worked on front-end features, reviewed repositories, or researched syntax errors. Visited engineering platforms including ${domains.slice(0, 3).join(", ")}.`
+        title: pageTitleClean,
+        summary: `Practiced programming or viewed developer resources. Visited: ${list}.`
       };
     }
     case "design":
       return {
         category: "Product Design",
-        title: `Design iteration: ${pageTitleClean}`,
-        summary: `Focused on user interface layouts, graphical assets, or styling adjustments. Researched aesthetic layouts on Figma or community boards.`
+        title: pageTitleClean.includes("Design") ? pageTitleClean : `UI Design Research: ${pageTitleClean}`,
+        summary: `Browsed design layouts and visual inspiration. Visited: ${list}.`
       };
     case "productivity":
       return {
         category: "Productivity & Docs",
-        title: `Workspace sync: ${pageTitleClean}`,
-        summary: `Documented engineering steps, updated task boards, or reviewed internal notes. Used coordination tools like ${domains.slice(0, 3).join(", ")}.`
+        title: pageTitleClean,
+        summary: `Reviewed workspace productivity tools and documents. Visited: ${list}.`
       };
     case "research":
       return {
         category: "Learning & Research",
-        title: `Deep dive: ${pageTitleClean}`,
-        summary: `Researched documentation, read scientific papers, or read reference articles on topics of interest. Focused on domains like ${domains.slice(0, 3).join(", ")}.`
+        title: pageTitleClean,
+        summary: `Researched documentation, reference articles, or reference notes. Visited: ${list}.`
       };
     case "entertainment":
+      if (domains.some(d => d.includes("lyrics") || d.includes("jiosaavn") || d.includes("smule") || d.includes("spotify") || d.includes("youtube") || d.includes("saavn"))) {
+        return {
+          category: "Leisure & Entertainment",
+          title: pageTitleClean,
+          summary: `Browsed music sites and searched for song lyrics. Visited: ${list}.`
+        };
+      }
       return {
         category: "Leisure & Entertainment",
-        title: `Social break: ${pageTitleClean}`,
-        summary: `Took a short productivity break. Browsed community discussion threads, listened to streams, or read media feeds on ${domains.slice(0, 2).join(" & ")}.`
+        title: pageTitleClean,
+        summary: `Browsed media feeds, music streams, or community threads. Visited: ${list}.`
       };
     case "search":
     default:
+      if (domains.some(d => d.includes("lyrics") || d.includes("jiosaavn") || d.includes("smule") || d.includes("saavn"))) {
+        return {
+          category: "Web Search",
+          title: pageTitleClean.startsWith("Search:") ? pageTitleClean : `Search: ${pageTitleClean}`,
+          summary: `Searched for music resources or song lyrics. Visited: ${list}.`
+        };
+      }
+      if (domains.some(d => d.includes("amazon") || d.includes("ebay") || d.includes("shopping") || d.includes("store"))) {
+        return {
+          category: "Web Search",
+          title: pageTitleClean.startsWith("Search:") ? pageTitleClean : `Search: ${pageTitleClean}`,
+          summary: `Searched for items and browsed shopping websites. Visited: ${list}.`
+        };
+      }
       return {
         category: "Web Search",
-        title: `Searching: ${pageTitleClean}`,
-        summary: `Ran general queries to find answers, navigate online indexes, or discover web endpoints. Primary domains searched: ${domains.slice(0, 3).join(", ")}.`
+        title: pageTitleClean.startsWith("Search:") ? pageTitleClean : `Search: ${pageTitleClean}`,
+        summary: `Ran search queries to find resources and explore pages on ${list}.`
       };
   }
 };

@@ -157,15 +157,10 @@ export default function Home() {
       }
       const json = await response.json();
       
-      if (json.success && json.data && json.data.length > 0) {
+      if (json.success && json.data) {
         setActivities(json.data);
         setError(null);
         setIsDemoMode(false);
-      } else {
-        // Connected to DB but it's empty, use demo dataset
-        setActivities(DEMO_ACTIVITIES());
-        setIsDemoMode(true);
-        setError(null);
       }
     } catch (err: any) {
       console.warn("Backend API not reachable, loading visual demo mode:", err.message);
