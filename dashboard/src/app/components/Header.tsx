@@ -26,8 +26,8 @@ export default function Header({ title, isConnected, error }: HeaderProps) {
         {/* Left Side: Brand Logo (Mobile only) & Section Title */}
         <div className="flex items-center gap-3">
           {/* Logo only visible on mobile (since sidebar contains it on desktop) */}
-          <div className="md:hidden w-8 h-8 rounded-lg bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 flex items-center justify-center shadow-lg shadow-indigo-500/20">
-            <Eye className="w-4.5 h-4.5 text-white" />
+          <div className="md:hidden w-8 h-8 rounded-lg overflow-hidden flex items-center justify-center">
+            <img src="/logo.png" alt="SessionLens Logo" className="w-full h-full object-cover scale-[2.2]" />
           </div>
           
           <div>

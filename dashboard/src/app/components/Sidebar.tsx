@@ -56,8 +56,8 @@ export default function Sidebar({ activeTab, setActiveTab, theme = "carbon" }: S
       <aside className="hidden md:flex flex-col w-64 h-screen fixed left-0 top-0 bg-[#08090d]/80 backdrop-blur-xl border-r border-zinc-850/60 p-6 z-20">
         {/* Brand Logo & Title */}
         <div className="flex items-center gap-3 mb-10 pl-2">
-          <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 flex items-center justify-center shadow-lg shadow-indigo-500/20">
-            <Eye className="w-5 h-5 text-white" />
+          <div className="w-9 h-9 rounded-xl overflow-hidden flex items-center justify-center">
+            <img src="/logo.png" alt="SessionLens Logo" className="w-full h-full object-cover scale-[2.2]" />
           </div>
           <div>
             <h1 className="font-bold text-base tracking-tight bg-gradient-to-r from-white via-zinc-200 to-zinc-400 bg-clip-text text-transparent">
