@@ -8,7 +8,7 @@ import SessionLensCircle from "./components/SessionLensCircle";
 import SessionCard from "./components/SessionCard";
 import EmptyState from "./components/EmptyState";
 import LoadingSkeleton from "./components/LoadingSkeleton";
-import { groupActivitiesIntoSessions, Activity, Session, getDomain } from "./utils/sessionizer";
+import { groupActivitiesIntoSessions, Activity, Session, getDomain, preprocessTimeline, getCleanDomainName } from "./utils/sessionizer";
 
 // Icons
 import {
@@ -339,9 +339,20 @@ export default function Home() {
           report += `#### ⏳ Captured Event Timeline\n`;
           if (session.events && session.events.length > 0) {
             const sortedEvents = [...session.events].sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
-            sortedEvents.forEach(evt => {
-              report += `* **${formatTimeOnly(evt.timestamp)}** - *${evt.title}* | [${evt.eventType}] (${evt.url})\n`;
-            });
+            const cleanedEvents = preprocessTimeline(sortedEvents);
+            if (cleanedEvents.length > 0) {
+              const showFullUrl = cleanedEvents.length <= 3;
+              cleanedEvents.forEach(evt => {
+                const domainName = getCleanDomainName(evt.url);
+                if (showFullUrl) {
+                  report += `* **${formatTimeOnly(evt.timestamp)}** — ${evt.title}\n  *${domainName}* | (${evt.url})\n`;
+                } else {
+                  report += `* **${formatTimeOnly(evt.timestamp)}** — ${evt.title}\n  *${domainName}*\n`;
+                }
+              });
+            } else {
+              report += `*No external web actions recorded.*\n`;
+            }
           }
           report += `\n---\n\n`;
         });

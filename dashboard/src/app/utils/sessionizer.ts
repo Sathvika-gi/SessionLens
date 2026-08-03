@@ -326,3 +326,114 @@ const createSessionFromEvents = (events: SessionEvent[]): Session => {
     events
   };
 };
+
+// Preprocess session events for clean timeline export
+export const preprocessTimeline = (events: SessionEvent[]): SessionEvent[] => {
+  if (!events || events.length === 0) return [];
+
+  const processed: SessionEvent[] = [];
+
+  events.forEach((evt) => {
+    // 1. Ignore chrome:// pages, new tabs, and unknown pages
+    const url = (evt.url || "").toLowerCase();
+    const title = (evt.title || "").toLowerCase();
+    if (
+      url.startsWith("chrome://") ||
+      url.startsWith("chrome-extension://") ||
+      url === "unknown" ||
+      title === "new tab" ||
+      title === "untitled" ||
+      title === "unknown"
+    ) {
+      return;
+    }
+
+    // 2. Format title cleanly (prefer page title over raw search URLs)
+    let cleanTitle = evt.title || "Browsing Session";
+    if (cleanTitle.startsWith("http://") || cleanTitle.startsWith("https://") || cleanTitle.includes("google.com/search") || cleanTitle.includes("?") || cleanTitle.includes(".com")) {
+      try {
+        const urlObj = new URL(evt.url);
+        if (urlObj.hostname.includes("google.com") && urlObj.pathname.includes("search")) {
+          const q = urlObj.searchParams.get("q");
+          if (q) {
+            const cleanQuery = decodeURIComponent(q.replace(/\+/g, " "));
+            cleanTitle = `Search: ${cleanQuery.split(" ").map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(" ")}`;
+          }
+        } else {
+          cleanTitle = urlObj.hostname.replace("www.", "");
+        }
+      } catch (e) {
+        // Fallback
+      }
+    } else if (cleanTitle.toLowerCase().endsWith(" - google search")) {
+      const query = cleanTitle.substring(0, cleanTitle.length - " - google search".length).trim();
+      cleanTitle = `Search: ${query.split(" ").map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(" ")}`;
+    } else {
+      // Remove common suffixes
+      cleanTitle = cleanTitle.replace(/ - [^-]+$/, "").replace(/ \| [^|]+$/, "").trim();
+    }
+
+    const cleanEvt = {
+      ...evt,
+      title: cleanTitle
+    };
+
+    if (processed.length === 0) {
+      processed.push(cleanEvt);
+    } else {
+      const prev = processed[processed.length - 1];
+
+      // 3. Ignore duplicate consecutive events or identical URL events
+      if (prev.url === cleanEvt.url) {
+        return;
+      }
+
+      // Check if both are searches and have the same cleaned title
+      if (prev.title === cleanEvt.title) {
+        return;
+      }
+
+      processed.push(cleanEvt);
+    }
+  });
+
+  return processed;
+};
+
+// Extract and format clean domain name (e.g., Google, LeetCode, CodeChef, JioSaavn)
+export const getCleanDomainName = (urlStr: string): string => {
+  try {
+    if (!urlStr || urlStr === "unknown") return "System";
+    if (urlStr.startsWith("chrome://") || urlStr.startsWith("chrome-extension://")) {
+      return "Chrome";
+    }
+    const parsed = new URL(urlStr);
+    const host = parsed.hostname.replace("www.", "");
+    const parts = host.split(".");
+    
+    // Fallback if domain parsing fails
+    if (parts.length === 0) return "Web Page";
+    
+    const domain = parts[0];
+    const lower = domain.toLowerCase();
+    
+    // Custom mappings for popular sites to handle exact casing
+    if (lower === "google") return "Google";
+    if (lower === "leetcode") return "LeetCode";
+    if (lower === "codechef") return "CodeChef";
+    if (lower === "reactbits") return "ReactBits";
+    if (lower === "jiosaavn") return "JioSaavn";
+    if (lower === "github") return "GitHub";
+    if (lower === "youtube") return "YouTube";
+    if (lower === "stackoverflow") return "StackOverflow";
+    if (lower === "npm" || lower === "npmjs") return "NPM";
+    if (lower === "vercel") return "Vercel";
+    if (lower === "tamil2lyrics") return "Tamil2Lyrics";
+    if (lower === "smule") return "Smule";
+    
+    // Capitalize first letter
+    return domain.charAt(0).toUpperCase() + domain.slice(1);
+  } catch (e) {
+    return "Web Page";
+  }
+};
